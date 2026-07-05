@@ -24,3 +24,4 @@ supabase/functions/**/.env
 coverage/
 playwright-report/
 test-results/
+.vercel

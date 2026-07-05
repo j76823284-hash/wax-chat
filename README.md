@@ -60,6 +60,8 @@ supabase db reset              # applies supabase/migrations
 # 2. Configure the web app
 cp .env.example apps/web/.env.local
 #   → paste the anon key / service-role key / JWT secret printed by `supabase start`
+#   → or, for hosted Supabase projects using JWT signing keys, set
+#     SUPABASE_JWT_PRIVATE_JWK and SUPABASE_JWT_KID instead of SUPABASE_JWT_SECRET
 
 # 3. Run the app (defaults to WAX mainnet)
 pnpm dev                       # http://localhost:3000

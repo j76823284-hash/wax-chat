@@ -10,12 +10,13 @@
   },
   "scripts": {
     "dev": "pnpm --filter @wax-chat/web dev",
-    "build": "pnpm -r --filter=@wax-chat/wax build && pnpm --filter @wax-chat/web build",
+    "build": "pnpm -r --filter=@wax-chat/wax build && pnpm --filter @wax-chat/web build && rm -rf .next && cp -R apps/web/.next .next",
     "start": "pnpm --filter @wax-chat/web start",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
+    "next": "^15.1.6",
     "typescript": "^5.6.3"
   }
 }
