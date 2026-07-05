@@ -1,0 +1,35 @@
+# Supabase local config. If `supabase start` complains about this file with your
+# CLI version, run `supabase init` to regenerate it — you do not need any custom
+# settings beyond defaults, because the default local JWT secret
+# ("super-secret-jwt-token-with-at-least-32-characters-long") is what WaxChat
+# signs Sign-In-With-WAX tokens with (see .env.example / SUPABASE_JWT_SECRET).
+project_id = "wax-chat"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+
+[realtime]
+enabled = true

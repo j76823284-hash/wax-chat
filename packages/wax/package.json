@@ -1,0 +1,30 @@
+{
+  "name": "@wax-chat/wax",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WAX blockchain integration for WaxChat: WharfKit sessions, balances, NFTs, transfers.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./session": "./src/session.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"(no lint configured for @wax-chat/wax)\""
+  },
+  "dependencies": {
+    "@wharfkit/antelope": "^1.2.0",
+    "@wharfkit/session": "^1.7.0",
+    "@wharfkit/transact-plugin-resource-provider": "^2.0.0",
+    "@wharfkit/wallet-plugin-anchor": "^1.6.0",
+    "@wharfkit/wallet-plugin-cloudwallet": "^1.6.0",
+    "@wharfkit/web-renderer": "^1.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "wax-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An open-source, WAX-native Telegram alternative. Your identity is your WAX wallet.",
+  "license": "AGPL-3.0-or-later",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @wax-chat/web dev",
+    "build": "pnpm -r --filter=@wax-chat/wax build && pnpm --filter @wax-chat/web build",
+    "start": "pnpm --filter @wax-chat/web start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
