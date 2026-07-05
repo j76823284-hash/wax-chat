@@ -76,7 +76,7 @@ Uses **WAX mainnet** by default. To develop against testnet instead, set
 
 - **Phase 1 (MVP):** WAX login · realtime channels & DMs · channel-token name badges ·
   tipping & transfers · wallet + NFT view.
-- **Phase 2:** in-app AtomicHub & Alcor trading · paid promotion · 100k-WAX verified
+- **Phase 2:** in-app AtomicHub & Alcor trading · 100k-WAX verified
   stake (non-custodial escrow contract) · chain-watcher confirmation service.
 
 ## Contributing
