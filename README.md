@@ -13,7 +13,7 @@ the token economy is native to the conversation:
 - ✅ **Verified badge** — stake 100k WAX in a non-custodial escrow contract _(Phase 2)_.
 
 > Licensed under **AGPL-3.0-or-later**. Built on [WharfKit](https://wharfkit.com),
-> [AtomicAssets](https://atomicassets.io), and [Supabase](https://supabase.com).
+> [AtomicAssets](https://github.com/pinknetworkx/atomicassets-contract), and [Supabase](https://supabase.com).
 
 ---
 
