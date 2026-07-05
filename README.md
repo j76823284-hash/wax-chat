@@ -10,7 +10,6 @@ the token economy is native to the conversation:
   shows that **token's logo and the sender's live balance** next to their name.
 - 💸 **Tip & transfer** tokens and NFTs, and view your wallet — all in-app.
 - 🛒 **Trade on Alcor & AtomicHub** without leaving the app _(Phase 2)_.
-- 📣 **Paid promotion** — Telegram-Ads style, paid in WAX for a set duration _(Phase 2)_.
 - ✅ **Verified badge** — stake 100k WAX in a non-custodial escrow contract _(Phase 2)_.
 
 > Licensed under **AGPL-3.0-or-later**. Built on [WharfKit](https://wharfkit.com),
@@ -31,7 +30,7 @@ Chat volume can't live on-chain, so WaxChat is deliberately hybrid:
 ```
 apps/web          Next.js (App Router) + Tailwind + WharfKit
 packages/wax      WharfKit session factory, chain/balance/NFT helpers, token-list
-packages/contracts  (Phase 2) C++/CDT escrow contract: verified stake + paid promotion
+packages/contracts  (Phase 2) C++/CDT escrow contract: verified stake
 supabase/         SQL migrations (schema + RLS) and edge functions (siwx-verify, ...)
 ```
 
@@ -81,5 +80,31 @@ Uses **WAX mainnet** by default. To develop against testnet instead, set
 
 ## Contributing
 
-Issues and PRs welcome. This is an early-stage MVP — see `packages/wax` for the
-blockchain integration layer and `supabase/migrations` for the data model.
+WaxChat is an early-stage MVP, and contributions are welcome. The most useful
+contributions right now are bug reports, wallet-login testing, Supabase/RLS
+review, WAX token integrations, UI polish, and small fixes that make the app
+easier to run.
+
+### Development flow
+
+1. Fork the repo and create a branch from `main`.
+2. Install dependencies with `pnpm install`.
+3. Start Supabase locally with `supabase start`, then apply migrations with
+   `supabase db reset`.
+4. Copy `.env.example` to `apps/web/.env.local` and fill in the Supabase values.
+5. Run `pnpm dev` and test your change in the browser.
+6. Before opening a PR, run `pnpm typecheck` and `pnpm build` where possible.
+
+### Project map
+
+- `apps/web` contains the Next.js app, UI components, and API routes.
+- `packages/wax` contains WAX chain helpers, wallet session code, balances,
+  token metadata, NFTs, and transfer logic.
+- `supabase/migrations` contains the database schema, RLS policies, realtime
+  publication setup, and storage buckets.
+
+### Pull requests
+
+Keep PRs focused and describe the user-facing behavior you changed. Include
+screenshots for UI changes, mention any migration or environment-variable
+changes, and call out anything that still needs follow-up testing.
