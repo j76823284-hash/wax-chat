@@ -38,7 +38,7 @@ export const CHAINS: Record<WaxNetwork, ChainConfig> = {
 };
 
 export function resolveNetwork(value?: string | null): WaxNetwork {
-  return value === "mainnet" ? "mainnet" : "testnet";
+  return value === "testnet" ? "testnet" : "mainnet";
 }
 
 /**

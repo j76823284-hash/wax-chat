@@ -61,11 +61,13 @@ supabase db reset              # applies supabase/migrations
 cp .env.example apps/web/.env.local
 #   → paste the anon key / service-role key / JWT secret printed by `supabase start`
 
-# 3. Run the app (defaults to WAX testnet)
+# 3. Run the app (defaults to WAX mainnet)
 pnpm dev                       # http://localhost:3000
 ```
 
-Get a WAX **testnet** account + tokens from the
+Uses **WAX mainnet** by default. To develop against testnet instead, set
+`NEXT_PUBLIC_WAX_NETWORK=testnet` (+ matching RPC/Atomic API URLs) in
+`apps/web/.env.local` and get a testnet account from the
 [waxsweden faucet](https://waxsweden.org/testnet/developers/).
 
 ## Roadmap
