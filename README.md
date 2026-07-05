@@ -69,7 +69,7 @@ pnpm dev                       # http://localhost:3000
 Uses **WAX mainnet** by default. To develop against testnet instead, set
 `NEXT_PUBLIC_WAX_NETWORK=testnet` (+ matching RPC/Atomic API URLs) in
 `apps/web/.env.local` and get a testnet account from the
-[waxsweden faucet](https://waxsweden.org/testnet/developers/).
+[waxsweden faucet](https://waxsweden.org/create-testnet-account/)
 
 ## Roadmap
 
