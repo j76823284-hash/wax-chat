@@ -71,7 +71,7 @@ export function NftPicker({
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-      <div className="grid max-h-[50vh] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+      <div className="grid max-h-[32vh] max-h-[32dvh] grid-cols-3 gap-2 overflow-y-auto sm:max-h-[50vh] sm:grid-cols-4">
         {items.map((n) => (
           <button
             key={n.assetId}
