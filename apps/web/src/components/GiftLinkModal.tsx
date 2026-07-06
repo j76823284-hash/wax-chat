@@ -41,7 +41,7 @@ function findLinkId(value: unknown): string | null {
     const account = String(node.account ?? act?.account ?? "");
     const name = String(node.name ?? act?.name ?? "");
     const linkId = data?.link_id ?? node.link_id;
-    if (linkId != null && (account === ATOMIC_TOOLS_ACCOUNT || name === "lognewlink")) {
+    if (linkId != null && (name === "lognewlink" || account === ATOMIC_TOOLS_ACCOUNT)) {
       return String(linkId);
     }
 
@@ -91,6 +91,27 @@ async function fetchTableLinkId(publicKey: string, assetIds: string[]): Promise<
   return isRecord(row) && row.link_id != null ? String(row.link_id) : null;
 }
 
+async function fetchAtomicToolsApiLinkId(publicKey: string, assetIds: string[]): Promise<string | null> {
+  const params = new URLSearchParams({
+    public_key: publicKey,
+    limit: "10",
+    order: "desc",
+    sort: "created",
+  });
+  const res = await fetch(`${chain.atomicApi.replace(/\/+$/, "")}/atomictools/v1/links?${params}`);
+  if (!res.ok) return null;
+  const payload = (await res.json()) as { data?: unknown[] };
+  const row = payload.data?.find((item) => {
+    if (!isRecord(item) || item.public_key !== publicKey) return false;
+    const assets = Array.isArray(item.assets) ? item.assets : [];
+    return sameAssetIds(
+      assets.map((asset) => (isRecord(asset) ? asset.asset_id : null)).filter(Boolean),
+      assetIds,
+    );
+  });
+  return isRecord(row) && row.link_id != null ? String(row.link_id) : null;
+}
+
 async function waitForLinkId({
   transactionId,
   publicKey,
@@ -106,6 +127,9 @@ async function waitForLinkId({
       : null;
     if (historyId) return historyId;
 
+    const apiId = await fetchAtomicToolsApiLinkId(publicKey, assetIds).catch(() => null);
+    if (apiId) return apiId;
+
     const tableId = await fetchTableLinkId(publicKey, assetIds).catch(() => null);
     if (tableId) return tableId;
 
@@ -116,6 +140,10 @@ async function waitForLinkId({
 
 function atomicHubLinkBase(): string {
   return chain.network === "testnet" ? "https://wax-test.atomichub.io" : "https://wax.atomichub.io";
+}
+
+function atomicHubChainId(): string {
+  return chain.network === "testnet" ? "wax-testnet" : "wax-mainnet";
 }
 
 /**
@@ -218,7 +246,7 @@ export function GiftLinkModal({
       const linkId =
         findLinkId(result.raw) ??
         (await waitForLinkId({ transactionId: result.transactionId, publicKey, assetIds }));
-      const url = `${atomicHubLinkBase()}/trading/link/${linkId}?key=${encodeURIComponent(
+      const url = `${atomicHubLinkBase()}/trading/link/${atomicHubChainId()}/${linkId}?key=${encodeURIComponent(
         privateKey.toWif(),
       )}`;
       setLink(url);
@@ -277,6 +305,9 @@ export function GiftLinkModal({
             className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-wax-500"
           />
         </label>
+        <p className="text-xs text-neutral-500">
+          Memos are stored unencrypted on the blockchain and can be seen by anybody.
+        </p>
 
         <button
           onClick={createGiftLink}
