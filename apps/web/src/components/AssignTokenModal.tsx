@@ -22,6 +22,7 @@ export function AssignTokenModal({
   const [symbol, setSymbol] = useState(channel.token_symbol ?? "WAX");
   const [logo, setLogo] = useState(channel.token_logo_url ?? "");
   const [precision, setPrecision] = useState<number | null>(channel.token_precision);
+  const [issuer, setIssuer] = useState<string | null>(channel.token_issuer);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -56,6 +57,7 @@ export function AssignTokenModal({
     }
 
     setPrecision(stats.precision);
+    setIssuer(stats.issuer ?? null);
     if (!logo.trim()) {
       const found = await resolveTokenLogo(trimmedContract, trimmedSymbol, clientEnv.tokenListUrl);
       if (found) setLogo(found);
@@ -93,6 +95,9 @@ export function AssignTokenModal({
       token_symbol: symbol.trim().toUpperCase(),
       token_precision: nextPrecision,
       token_logo_url: logo.trim() || null,
+      token_issuer: issuer,
+      // Changing the token invalidates any prior issuer verification.
+      is_verified: false,
     };
     const { error } = await supabase.from("channels").update(patch).eq("id", channel.id);
     setBusy(false);

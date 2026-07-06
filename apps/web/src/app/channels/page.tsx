@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/app/providers";
 import { clientEnv } from "@/lib/env";
-import type { Channel } from "@/lib/types";
+import { channelAvatar, type Channel } from "@/lib/types";
 import { Avatar } from "@/components/Avatar";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 export default function ChannelsHome() {
   const { supabase, account } = useAuth();
@@ -24,7 +25,7 @@ export default function ChannelsHome() {
   }, [supabase]);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 overflow-y-auto p-4 sm:p-8">
       <div>
         <h1 className="text-2xl font-bold">Welcome to {clientEnv.appName}</h1>
         <p className="mt-1 text-neutral-400">
@@ -52,10 +53,11 @@ export default function ChannelsHome() {
                 href={`/channels/${c.id}`}
                 className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900 px-4 py-3 hover:border-neutral-700"
               >
-                <Avatar name={c.name} url={c.avatar_url} size={40} />
+                <Avatar name={c.name} url={channelAvatar(c)} size={40} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 truncate font-medium">
-                    {c.name}
+                    <span className="truncate">{c.name}</span>
+                    {c.is_verified ? <VerifiedBadge logoUrl={c.token_logo_url} size={15} /> : null}
                     {c.token_symbol ? (
                       <span className="rounded bg-wax-500/15 px-1.5 text-[11px] text-wax-400">
                         {c.token_symbol}
