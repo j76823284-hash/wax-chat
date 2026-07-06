@@ -14,10 +14,12 @@ export function NftPicker({
   account,
   onSelect,
   selectedId,
+  selectedIds,
 }: {
   account: string;
   onSelect: (nft: NftAsset) => void;
   selectedId?: string | null;
+  selectedIds?: string[];
 }) {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -27,6 +29,7 @@ export function NftPicker({
   const [error, setError] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedIdSet = new Set(selectedIds ?? (selectedId ? [selectedId] : []));
 
   // Debounce the search box, and reset to page 1 on a new query.
   useEffect(() => {
@@ -74,7 +77,7 @@ export function NftPicker({
             key={n.assetId}
             onClick={() => onSelect(n)}
             className={`group overflow-hidden rounded-lg border text-left transition ${
-              selectedId === n.assetId
+              selectedIdSet.has(n.assetId)
                 ? "border-wax-500 ring-2 ring-wax-500/40"
                 : "border-neutral-800 hover:border-wax-500"
             }`}

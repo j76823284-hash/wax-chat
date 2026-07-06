@@ -28,7 +28,7 @@ interface AuthContextValue {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   /** Sign + broadcast actions with the connected wallet. Prompts login if needed. */
-  transact: (actions: ActionObject[]) => Promise<{ transactionId: string }>;
+  transact: (actions: ActionObject[]) => Promise<{ transactionId: string; raw: unknown }>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -163,7 +163,7 @@ export function Providers({ children }: { children: ReactNode }) {
       };
       const transactionId =
         result.response?.transaction_id ?? result.resolved?.transaction?.id?.toString() ?? "";
-      return { transactionId };
+      return { transactionId, raw: result };
     },
     [login],
   );

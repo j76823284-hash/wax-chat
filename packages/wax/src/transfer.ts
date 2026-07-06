@@ -66,3 +66,29 @@ export function nftTransferAction({
     data: { from, to, asset_ids: assetIds, memo },
   };
 }
+
+export interface AtomicToolsAnnounceLinkParams {
+  creator: string;
+  /** Public key for the one-time claim keypair. */
+  key: string;
+  assetIds: string[];
+  /** Message shown to the person who claims the link. */
+  memo?: string;
+  permission?: string;
+}
+
+/** AtomicTools NFT gift-link announcement (atomictoolsx::announcelink). */
+export function atomicToolsAnnounceLinkAction({
+  creator,
+  key,
+  assetIds,
+  memo = "",
+  permission = "active",
+}: AtomicToolsAnnounceLinkParams): ActionObject {
+  return {
+    account: "atomictoolsx",
+    name: "announcelink",
+    authorization: [{ actor: creator, permission }],
+    data: { creator, key, asset_ids: assetIds, memo },
+  };
+}
