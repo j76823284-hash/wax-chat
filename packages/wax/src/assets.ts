@@ -75,3 +75,24 @@ export function formatBalanceDisplay(value: bigint, precision: number, maxFracti
   const capped = frac.slice(0, Math.max(0, maxFractionDigits)).replace(/0+$/, "");
   return capped ? `${whole}.${capped}` : (whole as string);
 }
+
+/**
+ * Insert thousands separators into the integer part of a decimal string,
+ * leaving any fractional part untouched: "1234.5" => "1,234.5".
+ */
+export function withThousands(value: string): string {
+  const negative = value.startsWith("-");
+  const unsigned = negative ? value.slice(1) : value;
+  const [whole, frac] = unsigned.split(".");
+  const grouped = (whole ?? "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${negative ? "-" : ""}${grouped}${frac !== undefined ? `.${frac}` : ""}`;
+}
+
+/** Human balance with thousands separators, e.g. 1234500000000n @ 8 => "12,345". */
+export function formatBalanceWithCommas(
+  value: bigint,
+  precision: number,
+  maxFractionDigits = precision,
+): string {
+  return withThousands(formatBalanceDisplay(value, precision, maxFractionDigits));
+}

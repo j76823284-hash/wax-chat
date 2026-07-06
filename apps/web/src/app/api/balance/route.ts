@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { formatBalanceDisplay, getTokenBalance, parseAsset } from "@wax-chat/wax";
+import { formatBalanceWithCommas, getTokenBalance, parseAsset } from "@wax-chat/wax";
 import { serviceClient } from "@/lib/server-supabase";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ function toResponse(amount: string) {
     amount,
     symbol: parsed.symbol,
     precision: parsed.precision,
-    display: formatBalanceDisplay(parsed.value, parsed.precision, 4),
+    display: formatBalanceWithCommas(parsed.value, parsed.precision, 4),
   };
 }
 

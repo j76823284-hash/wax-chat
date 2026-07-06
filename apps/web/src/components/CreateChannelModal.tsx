@@ -18,7 +18,6 @@ export function CreateChannelModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -33,7 +32,7 @@ export function CreateChannelModal({ onClose }: { onClose: () => void }) {
         name: name.trim(),
         slug: slugify(name),
         description: description.trim() || null,
-        is_public: isPublic,
+        is_public: true,
       })
       .select("id")
       .single();
@@ -66,10 +65,6 @@ export function CreateChannelModal({ onClose }: { onClose: () => void }) {
             rows={2}
             className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-wax-500"
           />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />
-          Public (anyone can find and join)
         </label>
         {error ? <p className="text-xs text-red-400">{error}</p> : null}
         <button

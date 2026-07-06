@@ -13,6 +13,20 @@ body {
 
 body {
   @apply bg-neutral-950 text-neutral-100 antialiased;
+  /* Prevent iOS Safari horizontal rubber-banding on the chat layout. */
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+
+/* Full-height that accounts for mobile browser chrome (dvh) with a vh fallback. */
+.h-app {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Never let a long WAX account name or asset string force horizontal scroll. */
+* {
+  min-width: 0;
 }
 
 /* Thin dark scrollbars */

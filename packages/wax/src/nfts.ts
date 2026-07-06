@@ -56,12 +56,14 @@ export interface GetNftsOptions {
   page?: number;
   limit?: number;
   collection?: string;
+  /** Free-text search across asset/template names (AtomicAssets `match`). */
+  match?: string;
 }
 
 export async function getAccountNfts(
   atomicApi: string,
   owner: string,
-  { page = 1, limit = 40, collection }: GetNftsOptions = {},
+  { page = 1, limit = 40, collection, match }: GetNftsOptions = {},
 ): Promise<NftAsset[]> {
   const params = new URLSearchParams({
     owner,
@@ -71,6 +73,7 @@ export async function getAccountNfts(
     sort: "asset_id",
   });
   if (collection) params.set("collection_name", collection);
+  if (match && match.trim()) params.set("match", match.trim());
   const url = `${atomicApi.replace(/\/+$/, "")}/atomicassets/v1/assets?${params.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`AtomicAssets API failed: ${res.status}`);

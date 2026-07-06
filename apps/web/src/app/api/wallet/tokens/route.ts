@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { formatBalanceDisplay, getAccountTokens } from "@wax-chat/wax";
+import { formatBalanceWithCommas, getAccountTokens } from "@wax-chat/wax";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,13 +13,19 @@ export async function GET(req: Request) {
   if (!hyperion) return NextResponse.json({ tokens: [], note: "WAX_HYPERION_URL not configured" });
 
   const tokens = await getAccountTokens(hyperion, account);
+  // Sort by held amount, largest first. Precisions differ per token, so compare
+  // the human decimal magnitude (float is fine for ordering only).
+  const magnitude = (value: bigint, precision: number) => Number(value) / 10 ** precision;
+  const sorted = [...tokens].sort(
+    (a, b) => magnitude(b.value, b.precision) - magnitude(a.value, a.precision),
+  );
   return NextResponse.json({
-    tokens: tokens.map((t) => ({
+    tokens: sorted.map((t) => ({
       contract: t.contract,
       symbol: t.symbol,
       precision: t.precision,
       asset: t.asset,
-      display: formatBalanceDisplay(t.value, t.precision, 4),
+      display: formatBalanceWithCommas(t.value, t.precision, 4),
     })),
   });
 }

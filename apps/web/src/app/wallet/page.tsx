@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import {
   getAccountNfts,
@@ -11,8 +11,8 @@ import {
 } from "@wax-chat/wax";
 import { useAuth } from "@/app/providers";
 import { chain } from "@/lib/wax";
-import { clientEnv } from "@/lib/env";
 import { useBalance } from "@/hooks/useBalance";
+import { ProfilePicModal } from "@/components/ProfilePicModal";
 
 interface WalletToken {
   contract: string;
@@ -52,16 +52,42 @@ function WalletView({
   );
   const [nfts, setNfts] = useState<NftAsset[]>([]);
   const [nftError, setNftError] = useState<string | null>(null);
+  const [nftQuery, setNftQuery] = useState("");
+  const [nftDebounced, setNftDebounced] = useState("");
+  const [nftPage, setNftPage] = useState(1);
+  const [nftHasNext, setNftHasNext] = useState(false);
+  const [nftLoading, setNftLoading] = useState(false);
+  const [pickingPic, setPickingPic] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const NFT_PAGE = 24;
+
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setNftDebounced(nftQuery);
+      setNftPage(1);
+    }, 300);
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [nftQuery]);
 
   useEffect(() => {
     let active = true;
-    getAccountNfts(chain.atomicApi, account, { limit: 60 })
-      .then((data) => active && setNfts(data))
-      .catch(() => active && setNftError("Could not load NFTs."));
+    setNftLoading(true);
+    setNftError(null);
+    getAccountNfts(chain.atomicApi, account, { limit: NFT_PAGE, page: nftPage, match: nftDebounced })
+      .then((data) => {
+        if (!active) return;
+        setNfts(data);
+        setNftHasNext(data.length === NFT_PAGE);
+      })
+      .catch(() => active && setNftError("Could not load NFTs."))
+      .finally(() => active && setNftLoading(false));
     return () => {
       active = false;
     };
-  }, [account]);
+  }, [account, nftPage, nftDebounced]);
 
   async function transferNft(asset: NftAsset) {
     const to = window.prompt(`Send "${asset.name}" to which WAX account?`);
@@ -77,10 +103,18 @@ function WalletView({
   const tokens = tokenData?.tokens ?? [];
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 overflow-y-auto p-8">
-      <div>
-        <h1 className="text-2xl font-bold">Wallet</h1>
-        <p className="text-sm text-neutral-500">@{account} · {chain.network}</p>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 overflow-y-auto p-4 sm:p-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Wallet</h1>
+          <p className="truncate text-sm text-neutral-500">@{account} · {chain.network}</p>
+        </div>
+        <button
+          onClick={() => setPickingPic(true)}
+          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs hover:border-wax-500"
+        >
+          Set profile picture
+        </button>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2">
@@ -116,7 +150,15 @@ function WalletView({
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">NFTs</h2>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">NFTs</h2>
+          <input
+            value={nftQuery}
+            onChange={(e) => setNftQuery(e.target.value)}
+            placeholder="Filter NFTs…"
+            className="w-40 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
+          />
+        </div>
         {nftError ? <p className="text-sm text-red-400">{nftError}</p> : null}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {nfts.map((n) => (
@@ -129,7 +171,7 @@ function WalletView({
               <div className="aspect-square bg-neutral-950">
                 {n.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={n.image} alt={n.name} className="h-full w-full object-cover" />
+                  <img src={n.image} alt={n.name} className="h-full w-full object-cover" loading="lazy" />
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs text-neutral-600">
                     No image
@@ -142,11 +184,32 @@ function WalletView({
               </div>
             </button>
           ))}
-          {nfts.length === 0 && !nftError ? (
-            <p className="col-span-full text-sm text-neutral-600">No NFTs in this wallet.</p>
+          {nfts.length === 0 && !nftError && !nftLoading ? (
+            <p className="col-span-full text-sm text-neutral-600">
+              {nftDebounced ? "No matching NFTs." : "No NFTs in this wallet."}
+            </p>
           ) : null}
         </div>
+        <div className="mt-3 flex items-center justify-between text-sm">
+          <button
+            onClick={() => setNftPage((p) => Math.max(1, p - 1))}
+            disabled={nftPage === 1 || nftLoading}
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 disabled:opacity-40"
+          >
+            ← Prev
+          </button>
+          <span className="text-xs text-neutral-500">{nftLoading ? "Loading…" : `Page ${nftPage}`}</span>
+          <button
+            onClick={() => setNftPage((p) => p + 1)}
+            disabled={!nftHasNext || nftLoading}
+            className="rounded-lg border border-neutral-700 px-3 py-1.5 disabled:opacity-40"
+          >
+            Next →
+          </button>
+        </div>
       </section>
+
+      {pickingPic ? <ProfilePicModal account={account} onClose={() => setPickingPic(false)} /> : null}
     </div>
   );
 }
