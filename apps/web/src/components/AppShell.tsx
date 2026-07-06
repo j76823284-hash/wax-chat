@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/app/providers";
 import { clientEnv } from "@/lib/env";
+import { VERSION_LABEL } from "@/lib/version";
 import { channelAvatar, type Channel } from "@/lib/types";
 import { LoginButton } from "./LoginButton";
 import { Avatar } from "./Avatar";
@@ -180,6 +181,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })
         )}
+      </div>
+
+      <div className="border-t border-neutral-800 px-4 py-2 text-[10px] text-neutral-600">
+        {VERSION_LABEL}
       </div>
     </aside>
   );
