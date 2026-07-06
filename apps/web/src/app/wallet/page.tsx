@@ -13,6 +13,7 @@ import { useAuth } from "@/app/providers";
 import { chain } from "@/lib/wax";
 import { useBalance } from "@/hooks/useBalance";
 import { ProfilePicModal } from "@/components/ProfilePicModal";
+import { PriceNote } from "@/components/PriceNote";
 
 interface WalletToken {
   contract: string;
@@ -20,6 +21,8 @@ interface WalletToken {
   precision: number;
   asset: string;
   display: string;
+  usdPrice: number | null;
+  usdValue: number | null;
 }
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
@@ -45,7 +48,7 @@ function WalletView({
   transact: (actions: import("@wax-chat/wax").ActionObject[]) => Promise<{ transactionId: string }>;
 }) {
   const wax = useBalance(account, { contract: "eosio.token", symbol: "WAX", precision: 8 });
-  const { data: tokenData } = useSWR<{ tokens: WalletToken[] }>(
+  const { data: tokenData } = useSWR<{ tokens: WalletToken[]; pricesFetchedAt: string | null }>(
     `/api/wallet/tokens?account=${encodeURIComponent(account)}`,
     fetcher,
     { revalidateOnFocus: false },
@@ -142,11 +145,17 @@ function WalletView({
                   <span className="font-medium">{t.symbol}</span>
                   <span className="ml-2 text-xs text-neutral-500">{t.contract}</span>
                 </div>
-                <span className="tabular-nums">{t.display}</span>
+                <div className="text-right">
+                  <div className="tabular-nums">{t.display}</div>
+                  {t.usdValue != null ? (
+                    <div className="text-xs tabular-nums text-neutral-500">${t.usdValue.toFixed(2)}*</div>
+                  ) : null}
+                </div>
               </div>
             ))
           )}
         </div>
+        <PriceNote fetchedAt={tokenData?.pricesFetchedAt ?? null} className="mt-2" />
       </section>
 
       <section>

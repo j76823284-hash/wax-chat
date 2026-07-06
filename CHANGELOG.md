@@ -3,6 +3,29 @@
 All notable changes to WaxChat are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.0.1] — 2026-07-06 (alpha)
+
+**Re-designated as an alpha.** WaxChat is still an early MVP under active testing,
+so the earlier `1.0.0` tag was premature — the project is now versioned from
+`0.0.1` to reflect its alpha status. The UI shows `v0.01 · alpha`.
+
+### Added
+- **USD value of holdings.** Token balances now show an estimated USD value:
+  - In chat, each member's token badge shows the dollar value of what they hold
+    next to their name, alongside the existing logo and balance.
+  - On the wallet page, every token row shows its USD value.
+- **Delayed price feed.** USD prices are fetched from a WAX price source (Alcor by
+  default, configurable via `WAX_PRICE_API_URL`) at most **once an hour** and
+  cached server-side. Every price-bearing view carries an asterisk footnote in the
+  small print stating the values are delayed and the timestamp they were accurate
+  for.
+- **Version indicator** in the sidebar.
+
+### Changed
+- **Wallet tokens are now sorted by USD value**, largest first (previously sorted
+  by raw held amount). Tokens with no known price fall to the bottom, ordered by
+  amount.
+
 ## [1.0.0] — 2026-07-06
 
 First tagged release. Adds the feature set from early user feedback and makes the

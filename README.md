@@ -2,17 +2,25 @@
 
 **An open-source, WAX-native Telegram alternative. Your identity is your WAX wallet.**
 
+> **Status: `v0.01` · alpha.** WaxChat is an early MVP under active testing — expect
+> rough edges and breaking changes. See the [changelog](CHANGELOG.md) for what's new.
+
 WaxChat is a real-time messenger where sign-up _is_ connecting a WAX wallet, and
 the token economy is native to the conversation:
 
 - 🔐 **Log in with a WAX wallet** (MyCloudWallet or Anchor) — no email, no password.
 - 🪙 **Channel tokens** — a channel creator assigns a token; every member's message
-  shows that **token's logo and the sender's live balance** next to their name.
+  shows that **token's logo, the sender's live balance, and its USD value\*** next
+  to their name.
 - 💸 **Tip & transfer** tokens and NFTs, and view your wallet — all in-app.
 - 🛒 **Trade on Alcor & AtomicHub** without leaving the app _(Phase 2)_.
 - ✅ **Verified badge** — stake 100k WAX in a non-custodial escrow contract _(Phase 2)_.
 
-> Licensed under **AGPL-3.0-or-later**. Built on [WharfKit](https://wharfkit.com),
+> \* **USD values are delayed.** Prices are fetched at most once an hour and cached;
+> the in-app small print states the exact timestamp each figure is accurate for.
+> They are estimates for convenience, not financial advice.
+
+> Built on [WharfKit](https://wharfkit.com),
 > [AtomicAssets](https://github.com/pinknetworkx/atomicassets-contract), and [Supabase](https://supabase.com).
 
 ---
@@ -108,3 +116,16 @@ easier to run.
 Keep PRs focused and describe the user-facing behavior you changed. Include
 screenshots for UI changes, mention any migration or environment-variable
 changes, and call out anything that still needs follow-up testing.
+
+## License
+
+WaxChat is licensed under the **GNU Affero General Public License v3.0 or later
+(AGPL-3.0-or-later)**. The full text is in [`LICENSE`](LICENSE).
+
+In short: you are free to use, study, modify, and redistribute this software, but
+if you run a modified version as a network service, you must make the complete
+corresponding source of your version available to its users under the same
+license. Contributions are accepted under these same terms.
+
+Third-party components (WharfKit, AtomicAssets, Supabase client libraries, and
+others listed in the lockfile) remain under their own respective licenses.

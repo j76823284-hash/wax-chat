@@ -1,6 +1,6 @@
 {
   "name": "wax-chat",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "An open-source, WAX-native Telegram alternative. Your identity is your WAX wallet.",
   "license": "AGPL-3.0-or-later",

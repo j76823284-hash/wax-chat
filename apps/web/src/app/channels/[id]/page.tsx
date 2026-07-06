@@ -13,11 +13,14 @@ import { TipModal } from "@/components/TipModal";
 import { AssignTokenModal } from "@/components/AssignTokenModal";
 import { ChannelSettingsModal } from "@/components/ChannelSettingsModal";
 import { GiftLinkModal } from "@/components/GiftLinkModal";
+import { PriceNote } from "@/components/PriceNote";
+import { usePrices } from "@/hooks/usePrices";
 
 export default function ChannelPage() {
   const params = useParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { supabase, account, ready } = useAuth();
+  const { fetchedAt } = usePrices();
 
   const [channel, setChannel] = useState<Channel | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -174,6 +177,8 @@ export default function ChannelPage() {
         onTip={(m) => setTipTarget({ recipient: m.sender_wax, message: m })}
         onReply={(m) => setReplyTo(m)}
       />
+
+      <PriceNote fetchedAt={fetchedAt} className="px-3 pb-1 sm:px-4" />
 
       <Composer
         channelId={id}
