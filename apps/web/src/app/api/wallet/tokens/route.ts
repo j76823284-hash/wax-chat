@@ -14,6 +14,15 @@ export async function GET(req: Request) {
   const account = new URL(req.url).searchParams.get("account");
   if (!account) return NextResponse.json({ error: "account required" }, { status: 400 });
 
+  const gateway = process.env.NEXT_PUBLIC_WAX_API_URL;
+  if (gateway) {
+    const res = await fetch(`${gateway.replace(/\/+$/, "")}/wallet/${encodeURIComponent(account)}/tokens`, {
+      headers: process.env.WAX_API_KEY ? { "x-api-key": process.env.WAX_API_KEY } : undefined,
+      next: { revalidate: 30 },
+    });
+    if (res.ok) return NextResponse.json(await res.json());
+  }
+
   const hyperion = process.env.WAX_HYPERION_URL;
   if (!hyperion)
     return NextResponse.json({

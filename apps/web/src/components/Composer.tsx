@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import useSWR from "swr";
 import { useAuth } from "@/app/providers";
 import type { Message } from "@/lib/types";
 
@@ -31,10 +32,19 @@ export function Composer({
   activeTopicId: string | null;
   onGift: () => void;
 }) {
-  const { supabase, account } = useAuth();
+  const { supabase, account, token } = useAuth();
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { data: ban } = useSWR<{ banned: boolean; bannedUntil: string | null; reason?: string | null }>(
+    token ? ["moderation-status", token] : null,
+    async () => {
+      const res = await fetch("/api/moderation/status", { headers: { Authorization: `Bearer ${token}` } });
+      return (await res.json()) as { banned: boolean; bannedUntil: string | null; reason?: string | null };
+    },
+    { refreshInterval: 60_000 },
+  );
+  const banned = Boolean(ban?.banned);
 
   if (!account) {
     return (
@@ -47,9 +57,10 @@ export function Composer({
   if (!isMember) {
     return (
       <div className="border-t border-neutral-800 px-4 py-3">
+        {banned ? <BanNotice bannedUntil={ban?.bannedUntil ?? null} /> : null}
         <button
           onClick={onJoin}
-          disabled={!canPost}
+          disabled={!canPost || banned}
           className="w-full rounded-lg bg-wax-500 px-3 py-2 text-sm font-semibold text-neutral-950 hover:bg-wax-400 disabled:opacity-60"
         >
           Join channel
@@ -71,6 +82,7 @@ export function Composer({
   async function send() {
     const text = body.trim();
     if (!text) return;
+    if (banned) return;
     if (runSlash(text)) return;
     setSending(true);
     setError(null);
@@ -106,6 +118,7 @@ export function Composer({
           </button>
         </div>
       ) : null}
+      {banned ? <BanNotice bannedUntil={ban?.bannedUntil ?? null} /> : null}
 
       {showCommands && matching.length > 0 ? (
         <div className="mb-2 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 text-sm">
@@ -143,13 +156,21 @@ export function Composer({
         />
         <button
           onClick={send}
-          disabled={sending || !body.trim()}
+          disabled={sending || banned || !body.trim()}
           className="rounded-lg bg-wax-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-wax-400 disabled:opacity-50"
         >
           Send
         </button>
       </div>
       {error ? <p className="mt-1 text-xs text-red-400">{error}</p> : null}
+    </div>
+  );
+}
+
+function BanNotice({ bannedUntil }: { bannedUntil: string | null }) {
+  return (
+    <div className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+      Posting is locked until {bannedUntil ? new Date(bannedUntil).toLocaleString() : "the ban expires"}.
     </div>
   );
 }

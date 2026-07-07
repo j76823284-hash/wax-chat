@@ -31,6 +31,24 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "account, contract and symbol are required" }, { status: 400 });
   }
 
+  const gateway = process.env.NEXT_PUBLIC_WAX_API_URL;
+  if (gateway) {
+    const res = await fetch(`${gateway.replace(/\/+$/, "")}/holders`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(process.env.WAX_API_KEY ? { "x-api-key": process.env.WAX_API_KEY } : {}),
+      },
+      body: JSON.stringify({ contract, symbol, accounts: [account] }),
+      next: { revalidate: 30 },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as Record<string, number>;
+      const amount = `${(data[account] ?? 0).toFixed(precision)} ${symbol}`;
+      return NextResponse.json(toResponse(amount));
+    }
+  }
+
   const rpc = process.env.NEXT_PUBLIC_WAX_RPC;
   if (!rpc) return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
 

@@ -25,6 +25,7 @@ export function ChannelSettingsModal({
   const { supabase, account } = useAuth();
   const [name, setName] = useState(channel.name);
   const [description, setDescription] = useState(channel.description ?? "");
+  const [modMinAmount, setModMinAmount] = useState(channel.mod_min_amount?.toString() ?? "");
   const [nickname, setNickname] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +48,11 @@ export function ChannelSettingsModal({
     setError(null);
     try {
       if (isOwner) {
-        const patch = { name: name.trim() || channel.name, description: description.trim() || null };
+        const patch = {
+          name: name.trim() || channel.name,
+          description: description.trim() || null,
+          mod_min_amount: modMinAmount.trim() ? Number(modMinAmount) : null,
+        };
         const { error: err } = await supabase.from("channels").update(patch).eq("id", channel.id);
         if (err) throw new Error(err.message);
         onSaved({ ...channel, ...patch });
@@ -88,6 +93,17 @@ export function ChannelSettingsModal({
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 className="w-full resize-none rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-wax-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-neutral-400">Mod threshold</span>
+              <input
+                value={modMinAmount}
+                onChange={(e) => setModMinAmount(e.target.value)}
+                inputMode="decimal"
+                disabled={!channel.token_contract}
+                placeholder={channel.token_contract ? "0 disables moderation" : "Assign a token first"}
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-wax-500 disabled:opacity-50"
               />
             </label>
           </>

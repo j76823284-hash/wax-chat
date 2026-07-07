@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import useSWR from "swr";
+import { useEffect, useMemo, useRef, useState } from "react";
+import useSWR, { mutate } from "swr";
 import {
   getAccountNfts,
   nftTransferAction,
@@ -54,21 +54,31 @@ function WalletView({
     { revalidateOnFocus: false },
   );
   const [nfts, setNfts] = useState<NftAsset[]>([]);
-  const [nftError, setNftError] = useState<string | null>(null);
   const [nftQuery, setNftQuery] = useState("");
   const [nftDebounced, setNftDebounced] = useState("");
   const [nftPage, setNftPage] = useState(1);
-  const [nftHasNext, setNftHasNext] = useState(false);
-  const [nftLoading, setNftLoading] = useState(false);
   const [pickingPic, setPickingPic] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const NFT_PAGE = 24;
+  const nftKey = useMemo(
+    () => ["wallet-nfts", account, nftDebounced, nftPage] as const,
+    [account, nftDebounced, nftPage],
+  );
+  const {
+    data: nftBatch,
+    error: nftError,
+    isLoading: nftLoading,
+    mutate: refreshNfts,
+  } = useSWR(nftKey, ([, owner, match, page]) =>
+    getAccountNfts(chain.atomicApi, owner, { limit: NFT_PAGE, page, match }),
+  );
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       setNftDebounced(nftQuery);
       setNftPage(1);
+      setNfts([]);
     }, 300);
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -76,21 +86,16 @@ function WalletView({
   }, [nftQuery]);
 
   useEffect(() => {
-    let active = true;
-    setNftLoading(true);
-    setNftError(null);
-    getAccountNfts(chain.atomicApi, account, { limit: NFT_PAGE, page: nftPage, match: nftDebounced })
-      .then((data) => {
-        if (!active) return;
-        setNfts(data);
-        setNftHasNext(data.length === NFT_PAGE);
-      })
-      .catch(() => active && setNftError("Could not load NFTs."))
-      .finally(() => active && setNftLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [account, nftPage, nftDebounced]);
+    if (!nftBatch) return;
+    setNfts((prev) => {
+      const next = nftPage === 1 ? [] : [...prev];
+      const seen = new Set(next.map((n) => n.assetId));
+      for (const nft of nftBatch) {
+        if (!seen.has(nft.assetId)) next.push(nft);
+      }
+      return next;
+    });
+  }, [nftBatch, nftPage]);
 
   async function transferNft(asset: NftAsset) {
     const to = window.prompt(`Send "${asset.name}" to which WAX account?`);
@@ -98,6 +103,7 @@ function WalletView({
     try {
       await transact([nftTransferAction({ from: account, to: to.trim(), assetIds: [asset.assetId] })]);
       setNfts((prev) => prev.filter((n) => n.assetId !== asset.assetId));
+      void mutate((key) => Array.isArray(key) && key[0] === "wallet-nfts", undefined, { revalidate: true });
     } catch (e) {
       alert(e instanceof Error ? e.message : "Transfer failed");
     }
@@ -161,14 +167,26 @@ function WalletView({
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">NFTs</h2>
-          <input
-            value={nftQuery}
-            onChange={(e) => setNftQuery(e.target.value)}
-            placeholder="Filter NFTs…"
-            className="w-40 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setNftPage(1);
+                setNfts([]);
+                void refreshNfts();
+              }}
+              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-wax-500"
+            >
+              Refresh
+            </button>
+            <input
+              value={nftQuery}
+              onChange={(e) => setNftQuery(e.target.value)}
+              placeholder="Filter NFTs…"
+              className="w-40 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
+            />
+          </div>
         </div>
-        {nftError ? <p className="text-sm text-red-400">{nftError}</p> : null}
+        {nftError ? <p className="text-sm text-red-400">Could not load NFTs.</p> : null}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {nfts.map((n) => (
             <button
@@ -179,8 +197,7 @@ function WalletView({
             >
               <div className="aspect-square bg-neutral-950">
                 {n.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={n.image} alt={n.name} className="h-full w-full object-cover" loading="lazy" />
+                  <NftImage src={n.image} alt={n.name} />
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs text-neutral-600">
                     No image
@@ -199,27 +216,45 @@ function WalletView({
             </p>
           ) : null}
         </div>
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <button
-            onClick={() => setNftPage((p) => Math.max(1, p - 1))}
-            disabled={nftPage === 1 || nftLoading}
-            className="rounded-lg border border-neutral-700 px-3 py-1.5 disabled:opacity-40"
-          >
-            ← Prev
-          </button>
-          <span className="text-xs text-neutral-500">{nftLoading ? "Loading…" : `Page ${nftPage}`}</span>
+        <div className="mt-3 flex items-center justify-center text-sm">
           <button
             onClick={() => setNftPage((p) => p + 1)}
-            disabled={!nftHasNext || nftLoading}
+            disabled={(nftBatch?.length ?? 0) < NFT_PAGE || nftLoading}
             className="rounded-lg border border-neutral-700 px-3 py-1.5 disabled:opacity-40"
           >
-            Next →
+            {nftLoading ? "Loading…" : "Load more"}
           </button>
         </div>
       </section>
 
       {pickingPic ? <ProfilePicModal account={account} onClose={() => setPickingPic(false)} /> : null}
     </div>
+  );
+}
+
+function NftImage({ src, alt }: { src: string; alt: string }) {
+  const [url, setUrl] = useState(src);
+  const [attempt, setAttempt] = useState(0);
+  const fallbacks = [
+    src,
+    src.replace("https://ipfs.io/ipfs/", "https://cloudflare-ipfs.com/ipfs/"),
+    src.replace("https://ipfs.io/ipfs/", "https://dweb.link/ipfs/"),
+  ];
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt={alt}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => {
+        const next = attempt + 1;
+        if (fallbacks[next] && fallbacks[next] !== url) {
+          setAttempt(next);
+          setUrl(fallbacks[next]);
+        }
+      }}
+    />
   );
 }
 

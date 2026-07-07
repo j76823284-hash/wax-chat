@@ -14,14 +14,14 @@ export interface NftAsset {
   data: Record<string, unknown>;
 }
 
-const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+const IPFS_GATEWAYS = ["https://ipfs.io/ipfs/", "https://cloudflare-ipfs.com/ipfs/", "https://dweb.link/ipfs/"];
 
 /** Resolve an AtomicAssets image field (ipfs hash or url) to a fetchable URL. */
 export function resolveMedia(value?: unknown): string | undefined {
   if (typeof value !== "string" || value.length === 0) return undefined;
   if (value.startsWith("http://") || value.startsWith("https://")) return value;
   if (value.startsWith("Qm") || value.startsWith("bafy") || value.startsWith("baf")) {
-    return `${IPFS_GATEWAY}${value}`;
+    return `${IPFS_GATEWAYS[0]}${value}`;
   }
   return undefined;
 }
@@ -70,7 +70,7 @@ export async function getAccountNfts(
     page: String(page),
     limit: String(limit),
     order: "desc",
-    sort: "asset_id",
+    sort: "transferred",
   });
   if (collection) params.set("collection_name", collection);
   if (match && match.trim()) params.set("match", match.trim());

@@ -17,6 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [order, setOrder] = useState<Record<string, number>>({});
+  const [pins, setPins] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
@@ -49,6 +50,17 @@ export function AppShell({ children }: { children: ReactNode }) {
           setCounts(tally);
           setOrder(mine);
         }
+        if (account) {
+          const { data: pinRows } = await supabase
+            .from("channel_pins")
+            .select("channel_id")
+            .eq("wax_account", account);
+          if (active && pinRows) {
+            setPins(new Set((pinRows as { channel_id: string }[]).map((p) => p.channel_id)));
+          }
+        } else {
+          setPins(new Set());
+        }
       }
     })();
     return () => {
@@ -56,17 +68,27 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
   }, [supabase, pathname, account]);
 
-  // Joined channels first (by saved position), then the rest by recency.
+  // Pinned channels first, then member count descending.
   const ordered = useMemo(() => {
     return [...channels].sort((a, b) => {
+      const pinA = pins.has(a.id);
+      const pinB = pins.has(b.id);
+      if (pinA && !pinB) return -1;
+      if (!pinA && pinB) return 1;
+      if (pinA && pinB) {
+        const pa = order[a.id];
+        const pb = order[b.id];
+        if (pa != null && pb != null) return pa - pb;
+      }
+      const ca = counts[a.id] ?? 0;
+      const cb = counts[b.id] ?? 0;
+      if (ca !== cb) return cb - ca;
       const pa = order[a.id];
       const pb = order[b.id];
       if (pa != null && pb != null) return pa - pb;
-      if (pa != null) return -1;
-      if (pb != null) return 1;
       return 0; // preserve created_at desc from the query
     });
-  }, [channels, order]);
+  }, [channels, counts, order, pins]);
 
   const dragId = useRef<string | null>(null);
 
@@ -74,7 +96,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const from = dragId.current;
     dragId.current = null;
     if (!from || from === targetId || !account) return;
-    const ids = ordered.map((c) => c.id);
+    if (!pins.has(from) || !pins.has(targetId)) return;
+    const ids = ordered.filter((c) => pins.has(c.id)).map((c) => c.id);
     const fromIdx = ids.indexOf(from);
     const toIdx = ids.indexOf(targetId);
     if (fromIdx < 0 || toIdx < 0) return;
@@ -91,6 +114,21 @@ export function AppShell({ children }: { children: ReactNode }) {
       .map((id) => ({ channel_id: id, wax_account: account, position: next[id] }));
     if (rows.length) {
       void supabase.from("channel_members").upsert(rows, { onConflict: "channel_id,wax_account" });
+    }
+  }
+
+  async function togglePin(channelId: string, pinned: boolean) {
+    if (!account) return;
+    setPins((prev) => {
+      const next = new Set(prev);
+      if (pinned) next.delete(channelId);
+      else next.add(channelId);
+      return next;
+    });
+    if (pinned) {
+      await supabase.from("channel_pins").delete().eq("wax_account", account).eq("channel_id", channelId);
+    } else {
+      await supabase.from("channel_pins").insert({ wax_account: account, channel_id: channelId });
     }
   }
 
@@ -148,36 +186,50 @@ export function AppShell({ children }: { children: ReactNode }) {
         ) : (
           ordered.map((c) => {
             const count = counts[c.id] ?? 0;
+            const pinned = pins.has(c.id);
             return (
-              <Link
+              <div
                 key={c.id}
-                href={`/channels/${c.id}`}
-                draggable={Boolean(account)}
+                draggable={Boolean(account && pinned)}
                 onDragStart={() => (dragId.current = c.id)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onDrop(c.id)}
-                className={`flex items-center gap-2 rounded-md px-2 py-2 ${
+                className={`group flex items-center gap-2 rounded-md px-2 py-2 ${
                   pathname === `/channels/${c.id}` ? "bg-neutral-800" : "hover:bg-neutral-800/60"
                 }`}
               >
-                <Avatar name={c.name} url={channelAvatar(c)} size={34} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1 truncate text-sm font-medium">
-                    <span className="truncate">{c.name}</span>
-                    {c.is_verified ? <VerifiedBadge logoUrl={c.token_logo_url} size={14} /> : null}
-                    {c.token_symbol ? (
-                      <span className="shrink-0 rounded bg-wax-500/15 px-1 text-[10px] text-wax-400">
-                        {c.token_symbol}
-                      </span>
-                    ) : null}
+                <Link href={`/channels/${c.id}`} className="flex min-w-0 flex-1 items-center gap-2">
+                  <Avatar name={c.name} url={channelAvatar(c)} size={34} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1 truncate text-sm font-medium">
+                      <span className="truncate">{c.name}</span>
+                      {c.is_verified ? <VerifiedBadge logoUrl={c.token_logo_url} size={14} /> : null}
+                      {c.token_symbol ? (
+                        <span className="shrink-0 rounded bg-wax-500/15 px-1 text-[10px] text-wax-400">
+                          {c.token_symbol}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="truncate text-xs text-neutral-500">
+                      {count ? `${count.toLocaleString()} member${count === 1 ? "" : "s"}` : "—"}
+                      {" · @"}
+                      {c.owner_wax}
+                    </div>
                   </div>
-                  <div className="truncate text-xs text-neutral-500">
-                    {count ? `${count.toLocaleString()} member${count === 1 ? "" : "s"}` : "—"}
-                    {" · @"}
-                    {c.owner_wax}
-                  </div>
-                </div>
-              </Link>
+                </Link>
+                {account ? (
+                  <button
+                    onClick={() => void togglePin(c.id, pinned)}
+                    className={`rounded px-1 text-sm ${
+                      pinned ? "text-wax-400" : "text-neutral-600 opacity-0 group-hover:opacity-100 hover:text-wax-400"
+                    }`}
+                    title={pinned ? "Unpin channel" : "Pin channel"}
+                    aria-label={pinned ? "Unpin channel" : "Pin channel"}
+                  >
+                    ★
+                  </button>
+                ) : null}
+              </div>
             );
           })
         )}

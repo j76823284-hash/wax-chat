@@ -1,5 +1,5 @@
 import "server-only";
-import { importJWK, SignJWT, type JWK } from "jose";
+import { importJWK, jwtVerify, SignJWT, type JWK } from "jose";
 import { v5 as uuidv5 } from "uuid";
 
 // Fixed namespace so a WAX account always maps to the same UUID `sub`.
@@ -43,4 +43,21 @@ export async function mintSupabaseToken(account: string, ttlSeconds = 86_400): P
     .setIssuedAt(now)
     .setExpirationTime(now + ttlSeconds)
     .sign(secret);
+}
+
+export async function verifySupabaseWaxToken(token: string): Promise<string | null> {
+  const privateJwkStr = process.env.SUPABASE_JWT_PRIVATE_JWK;
+  if (privateJwkStr) {
+    const privateJwk = JSON.parse(privateJwkStr) as JWK;
+    if (!privateJwkStr) return null;
+    const key = await importJWK(privateJwk, "ES256");
+    const { payload } = await jwtVerify(token, key, { audience: "authenticated" });
+    return typeof payload.wax === "string" ? payload.wax : null;
+  }
+
+  const secretStr = process.env.SUPABASE_JWT_SECRET;
+  if (!secretStr) return null;
+  const secret = new TextEncoder().encode(secretStr);
+  const { payload } = await jwtVerify(token, secret, { audience: "authenticated" });
+  return typeof payload.wax === "string" ? payload.wax : null;
 }
