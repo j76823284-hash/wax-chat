@@ -1,20 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import { useAuth } from "@/app/providers";
-import type { ChannelToken, Message, Profile, Reaction } from "@/lib/types";
+import { useBalance } from "@/hooks/useBalance";
+import type { ChannelToken, Message, MessageFlag, Profile, Reaction } from "@/lib/types";
 import { MessageRow } from "./MessageRow";
 
 export function MessageList({
   channelId,
   token,
+  modMinAmount,
   activeTopicId,
+  onlyHolders,
   onTip,
   onReply,
 }: {
   channelId: string;
   token: ChannelToken | null;
+  modMinAmount: number | null;
   activeTopicId: string | null;
+  onlyHolders: boolean;
   onTip: (message: Message) => void;
   onReply: (message: Message) => void;
 }) {
@@ -23,6 +29,7 @@ export function MessageList({
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [nicknames, setNicknames] = useState<Record<string, string>>({});
   const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
+  const [flagCounts, setFlagCounts] = useState<Record<string, number>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const msgIds = useRef<Set<string>>(new Set());
 
@@ -46,6 +53,16 @@ export function MessageList({
       const map: Record<string, Reaction[]> = {};
       for (const r of data as Reaction[]) (map[r.message_id] ??= []).push(r);
       setReactions((prev) => ({ ...prev, ...map }));
+    }
+  }
+
+  async function loadFlags(ids: string[]) {
+    if (ids.length === 0) return;
+    const { data } = await supabase.from("message_flags").select("*").in("message_id", ids);
+    if (data) {
+      const map: Record<string, number> = {};
+      for (const f of data as MessageFlag[]) map[f.message_id] = (map[f.message_id] ?? 0) + 1;
+      setFlagCounts((prev) => ({ ...prev, ...map }));
     }
   }
 
@@ -85,6 +102,7 @@ export function MessageList({
       setMessages(msgs);
       await loadProfiles([...new Set(msgs.map((m) => m.sender_wax))]);
       await loadReactions(msgs.map((m) => m.id));
+      await loadFlags(msgs.map((m) => m.id));
     })();
     return () => {
       active = false;
@@ -111,6 +129,10 @@ export function MessageList({
         { event: "UPDATE", schema: "public", table: "messages", filter: `channel_id=eq.${channelId}` },
         (payload) => {
           const msg = payload.new as Message;
+          if (msg.deleted_at) {
+            setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+            return;
+          }
           setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
         },
       )
@@ -120,6 +142,23 @@ export function MessageList({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, channelId]);
+
+  useEffect(() => {
+    const sub = supabase
+      .channel(`flags:${channelId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "message_flags", filter: `channel_id=eq.${channelId}` }, (payload) => {
+        const flag = payload.new as MessageFlag;
+        setFlagCounts((prev) => ({ ...prev, [flag.message_id]: (prev[flag.message_id] ?? 0) + 1 }));
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(sub);
+    };
+  }, [supabase, channelId]);
+
+  const myBalance = useBalance(account, token);
+  const myTokenAmount = Number(myBalance?.amount.split(/\s+/)[0] ?? "0");
+  const canModerate = Boolean(token && modMinAmount && myTokenAmount >= modMinAmount);
 
   // Realtime: reactions (filtered client-side to messages we're showing).
   useEffect(() => {
@@ -149,9 +188,41 @@ export function MessageList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, channelId]);
 
-  const visible = useMemo(
+  const visibleByTopic = useMemo(
     () => (activeTopicId ? messages.filter((m) => m.topic_id === activeTopicId) : messages),
     [messages, activeTopicId],
+  );
+
+  const senderAccounts = useMemo(
+    () => [...new Set(visibleByTopic.map((m) => m.sender_wax))].sort(),
+    [visibleByTopic],
+  );
+
+  const holdersKey =
+    onlyHolders && token && senderAccounts.length
+      ? ["holders", token.contract, token.symbol, senderAccounts.join(",")]
+      : null;
+  const { data: holderAmounts } = useSWR<Record<string, number>>(holdersKey, async () => {
+    const res = await fetch("/api/holders", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contract: token?.contract,
+        symbol: token?.symbol,
+        accounts: senderAccounts,
+        minAmount: 0.00000001,
+      }),
+    });
+    if (!res.ok) throw new Error("holder lookup failed");
+    return (await res.json()) as Record<string, number>;
+  });
+
+  const visible = useMemo(
+    () =>
+      onlyHolders && token && holderAmounts
+        ? visibleByTopic.filter((m) => (holderAmounts[m.sender_wax] ?? 0) > 0)
+        : visibleByTopic,
+    [holderAmounts, onlyHolders, token, visibleByTopic],
   );
 
   useEffect(() => {
@@ -203,6 +274,28 @@ export function MessageList({
     if (error) alert(error.message);
   }
 
+  async function flagMessage(message: Message) {
+    if (!account) return;
+    const res = await fetch("/api/moderation/flag", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("waxchat.token") ?? ""}`,
+      },
+      body: JSON.stringify({ messageId: message.id }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string; count?: number; resolved?: boolean };
+    if (!res.ok) {
+      alert(data.error ?? "Could not flag message");
+      return;
+    }
+    if (data.resolved) {
+      setMessages((prev) => prev.filter((m) => m.id !== message.id));
+    } else if (data.count != null) {
+      setFlagCounts((prev) => ({ ...prev, [message.id]: data.count ?? 0 }));
+    }
+  }
+
   return (
     <div className="flex-1 overflow-y-auto py-3">
       {visible.length === 0 ? (
@@ -219,9 +312,12 @@ export function MessageList({
               token={token}
               me={account}
               canTip={Boolean(account) && m.sender_wax !== account}
+              canFlag={canModerate && Boolean(account) && m.sender_wax !== account}
+              flagCount={flagCounts[m.id] ?? 0}
               onTip={onTip}
               onReply={onReply}
               onEdit={editMessage}
+              onFlag={flagMessage}
               replyPreview={
                 replySrc
                   ? { name: nameFor(replySrc.sender_wax), body: replySrc.body ?? "media" }

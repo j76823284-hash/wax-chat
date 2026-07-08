@@ -1,19 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import useSWR from "swr";
-import {
-  getAccountNfts,
-  nftTransferAction,
-  toAssetString,
-  transferAction,
-  type NftAsset,
-} from "@wax-chat/wax";
+import { useEffect, useMemo, useRef, useState } from "react";
+import useSWR, { mutate } from "swr";
+import { getAccountNfts, toAssetString, transferAction, type NftAsset } from "@wax-chat/wax";
 import { useAuth } from "@/app/providers";
 import { chain } from "@/lib/wax";
-import { useBalance } from "@/hooks/useBalance";
+import { useBalance, type BalanceResult } from "@/hooks/useBalance";
 import { ProfilePicModal } from "@/components/ProfilePicModal";
 import { PriceNote } from "@/components/PriceNote";
+import { useToast } from "@/components/Toast";
+import { NftTransferModal } from "@/components/NftTransferModal";
 
 interface WalletToken {
   contract: string;
@@ -54,21 +50,32 @@ function WalletView({
     { revalidateOnFocus: false },
   );
   const [nfts, setNfts] = useState<NftAsset[]>([]);
-  const [nftError, setNftError] = useState<string | null>(null);
   const [nftQuery, setNftQuery] = useState("");
   const [nftDebounced, setNftDebounced] = useState("");
   const [nftPage, setNftPage] = useState(1);
-  const [nftHasNext, setNftHasNext] = useState(false);
-  const [nftLoading, setNftLoading] = useState(false);
   const [pickingPic, setPickingPic] = useState(false);
+  const [nftTarget, setNftTarget] = useState<NftAsset | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const NFT_PAGE = 24;
+  const nftKey = useMemo(
+    () => ["wallet-nfts", account, nftDebounced, nftPage] as const,
+    [account, nftDebounced, nftPage],
+  );
+  const {
+    data: nftBatch,
+    error: nftError,
+    isLoading: nftLoading,
+    mutate: refreshNfts,
+  } = useSWR(nftKey, ([, owner, match, page]) =>
+    getAccountNfts(chain.atomicApi, owner, { limit: NFT_PAGE, page, match }),
+  );
 
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       setNftDebounced(nftQuery);
       setNftPage(1);
+      setNfts([]);
     }, 300);
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -76,31 +83,20 @@ function WalletView({
   }, [nftQuery]);
 
   useEffect(() => {
-    let active = true;
-    setNftLoading(true);
-    setNftError(null);
-    getAccountNfts(chain.atomicApi, account, { limit: NFT_PAGE, page: nftPage, match: nftDebounced })
-      .then((data) => {
-        if (!active) return;
-        setNfts(data);
-        setNftHasNext(data.length === NFT_PAGE);
-      })
-      .catch(() => active && setNftError("Could not load NFTs."))
-      .finally(() => active && setNftLoading(false));
-    return () => {
-      active = false;
-    };
-  }, [account, nftPage, nftDebounced]);
+    if (!nftBatch) return;
+    setNfts((prev) => {
+      const next = nftPage === 1 ? [] : [...prev];
+      const seen = new Set(next.map((n) => n.assetId));
+      for (const nft of nftBatch) {
+        if (!seen.has(nft.assetId)) next.push(nft);
+      }
+      return next;
+    });
+  }, [nftBatch, nftPage]);
 
-  async function transferNft(asset: NftAsset) {
-    const to = window.prompt(`Send "${asset.name}" to which WAX account?`);
-    if (!to) return;
-    try {
-      await transact([nftTransferAction({ from: account, to: to.trim(), assetIds: [asset.assetId] })]);
-      setNfts((prev) => prev.filter((n) => n.assetId !== asset.assetId));
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Transfer failed");
-    }
+  function handleNftSent(assetId: string) {
+    setNfts((prev) => prev.filter((n) => n.assetId !== assetId));
+    void mutate((key) => Array.isArray(key) && key[0] === "wallet-nfts", undefined, { revalidate: true });
   }
 
   const tokens = tokenData?.tokens ?? [];
@@ -125,7 +121,7 @@ function WalletView({
           <div className="text-xs uppercase tracking-wide text-neutral-500">WAX balance</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{wax ? wax.display : "…"} WAX</div>
         </div>
-        <SendTokenCard account={account} transact={transact} />
+        <SendTokenCard account={account} transact={transact} tokens={tokens} wax={wax} />
       </section>
 
       <section>
@@ -161,26 +157,37 @@ function WalletView({
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">NFTs</h2>
-          <input
-            value={nftQuery}
-            onChange={(e) => setNftQuery(e.target.value)}
-            placeholder="Filter NFTs…"
-            className="w-40 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setNftPage(1);
+                setNfts([]);
+                void refreshNfts();
+              }}
+              className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-wax-500"
+            >
+              Refresh
+            </button>
+            <input
+              value={nftQuery}
+              onChange={(e) => setNftQuery(e.target.value)}
+              placeholder="Filter NFTs…"
+              className="w-40 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
+            />
+          </div>
         </div>
-        {nftError ? <p className="text-sm text-red-400">{nftError}</p> : null}
+        {nftError ? <p className="text-sm text-red-400">Could not load NFTs.</p> : null}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {nfts.map((n) => (
             <button
               key={n.assetId}
-              onClick={() => transferNft(n)}
+              onClick={() => setNftTarget(n)}
               className="group overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 text-left hover:border-wax-500"
               title="Click to transfer"
             >
               <div className="aspect-square bg-neutral-950">
                 {n.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={n.image} alt={n.name} className="h-full w-full object-cover" loading="lazy" />
+                  <NftImage src={n.image} alt={n.name} />
                 ) : (
                   <div className="flex h-full items-center justify-center text-xs text-neutral-600">
                     No image
@@ -199,58 +206,115 @@ function WalletView({
             </p>
           ) : null}
         </div>
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <button
-            onClick={() => setNftPage((p) => Math.max(1, p - 1))}
-            disabled={nftPage === 1 || nftLoading}
-            className="rounded-lg border border-neutral-700 px-3 py-1.5 disabled:opacity-40"
-          >
-            ← Prev
-          </button>
-          <span className="text-xs text-neutral-500">{nftLoading ? "Loading…" : `Page ${nftPage}`}</span>
+        <div className="mt-3 flex items-center justify-center text-sm">
           <button
             onClick={() => setNftPage((p) => p + 1)}
-            disabled={!nftHasNext || nftLoading}
+            disabled={(nftBatch?.length ?? 0) < NFT_PAGE || nftLoading}
             className="rounded-lg border border-neutral-700 px-3 py-1.5 disabled:opacity-40"
           >
-            Next →
+            {nftLoading ? "Loading…" : "Load more"}
           </button>
         </div>
       </section>
 
       {pickingPic ? <ProfilePicModal account={account} onClose={() => setPickingPic(false)} /> : null}
+      {nftTarget ? (
+        <NftTransferModal
+          asset={nftTarget}
+          account={account}
+          onClose={() => setNftTarget(null)}
+          onSent={handleNftSent}
+        />
+      ) : null}
     </div>
   );
 }
 
+function NftImage({ src, alt }: { src: string; alt: string }) {
+  const [url, setUrl] = useState(src);
+  const [attempt, setAttempt] = useState(0);
+  const fallbacks = [
+    src,
+    src.replace("https://ipfs.io/ipfs/", "https://cloudflare-ipfs.com/ipfs/"),
+    src.replace("https://ipfs.io/ipfs/", "https://dweb.link/ipfs/"),
+  ];
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt={alt}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => {
+        const next = attempt + 1;
+        if (fallbacks[next] && fallbacks[next] !== url) {
+          setAttempt(next);
+          setUrl(fallbacks[next]);
+        }
+      }}
+    />
+  );
+}
+
+/** Stable option key for a token: `${contract}:${SYMBOL}`. */
+const tokenKey = (t: { contract: string; symbol: string }) => `${t.contract}:${t.symbol}`;
+
 function SendTokenCard({
   account,
   transact,
+  tokens,
+  wax,
 }: {
   account: string;
   transact: (actions: import("@wax-chat/wax").ActionObject[]) => Promise<{ transactionId: string }>;
+  tokens: WalletToken[];
+  wax: BalanceResult | undefined;
 }) {
+  const { toast } = useToast();
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
-  const [contract, setContract] = useState("eosio.token");
-  const [symbol, setSymbol] = useState("WAX");
-  const [precision, setPrecision] = useState("8");
-  const [status, setStatus] = useState<string | null>(null);
+  const [selKey, setSelKey] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // The user can only send what they hold, so the wallet's token list *is* the
+  // full set of choices — no need to type a contract/symbol/precision by hand.
+  // WAX is always offered even if Hyperion didn't return it.
+  const options = useMemo<WalletToken[]>(() => {
+    const list = [...tokens];
+    if (!list.some((t) => t.contract === "eosio.token" && t.symbol === "WAX")) {
+      list.unshift({
+        contract: "eosio.token",
+        symbol: "WAX",
+        precision: 8,
+        asset: wax?.amount ?? "0.00000000 WAX",
+        display: wax?.display ?? "0",
+        usdPrice: null,
+        usdValue: null,
+      });
+    }
+    return list;
+  }, [tokens, wax]);
+
+  const selected = options.find((t) => tokenKey(t) === selKey) ?? options[0];
+  const maxAmount = selected ? (selected.asset.split(" ")[0] ?? "0") : "0";
+
   async function send() {
-    if (!to.trim() || !amount.trim()) return;
+    if (!selected || !to.trim() || !amount.trim()) return;
     setBusy(true);
-    setStatus(null);
     try {
-      const quantity = toAssetString(amount, Number(precision) || 0, symbol.trim().toUpperCase());
-      const { transactionId } = await transact([
-        transferAction({ contract: contract.trim(), from: account, to: to.trim(), quantity, memo: "" }),
+      const quantity = toAssetString(amount, selected.precision, selected.symbol);
+      await transact([
+        transferAction({ contract: selected.contract, from: account, to: to.trim(), quantity, memo: "" }),
       ]);
-      setStatus(`Sent ${quantity} ✓ ${transactionId ? transactionId.slice(0, 8) : ""}`);
+      toast({ variant: "success", title: "Sent ✓", description: `${quantity} → @${to.trim()}` });
       setAmount("");
+      setTo("");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Transfer failed");
+      toast({
+        variant: "error",
+        title: "Transfer failed",
+        description: e instanceof Error ? e.message : "The transfer was not sent.",
+      });
     } finally {
       setBusy(false);
     }
@@ -266,42 +330,40 @@ function SendTokenCard({
           placeholder="recipient.wam"
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
         />
+        <select
+          value={selected ? tokenKey(selected) : ""}
+          onChange={(e) => setSelKey(e.target.value)}
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
+        >
+          {options.map((t) => (
+            <option key={tokenKey(t)} value={tokenKey(t)}>
+              {t.symbol} — {t.display} available
+            </option>
+          ))}
+        </select>
         <div className="flex gap-2">
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
             placeholder="1.0"
-            className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
+            className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
           />
-          <input
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            placeholder="WAX"
-            className="w-20 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm uppercase outline-none focus:border-wax-500"
-          />
-          <input
-            value={contract}
-            onChange={(e) => setContract(e.target.value)}
-            placeholder="eosio.token"
-            className="flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
-          />
-          <input
-            value={precision}
-            onChange={(e) => setPrecision(e.target.value)}
-            inputMode="numeric"
-            className="w-12 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-center text-sm outline-none focus:border-wax-500"
-            title="precision"
-          />
+          <button
+            type="button"
+            onClick={() => setAmount(maxAmount)}
+            className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-400 hover:border-wax-500 hover:text-neutral-100"
+          >
+            Max
+          </button>
         </div>
         <button
           onClick={send}
-          disabled={busy || !to.trim() || !amount.trim()}
+          disabled={busy || !selected || !to.trim() || !amount.trim()}
           className="w-full rounded-lg bg-wax-500 px-3 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-wax-400 disabled:opacity-60"
         >
-          {busy ? "Sending…" : "Send"}
+          {busy ? "Sending…" : selected ? `Send ${selected.symbol}` : "Send"}
         </button>
-        {status ? <p className="text-xs text-neutral-300">{status}</p> : null}
       </div>
     </div>
   );

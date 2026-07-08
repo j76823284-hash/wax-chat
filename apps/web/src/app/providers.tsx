@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { SWRConfig } from "swr";
 import type { Session, SessionKit } from "@wharfkit/session";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loginChallengeAction, type ActionObject } from "@wax-chat/wax";
@@ -18,6 +19,22 @@ import { createSupabaseClient, decodeJwt } from "@/lib/supabase";
 
 const TOKEN_KEY = "waxchat.token";
 const ACCOUNT_KEY = "waxchat.account";
+const SWR_CACHE_KEY = "waxchat.swr.cache";
+
+function localStorageProvider(): Map<string, any> {
+  // Runs during SSR too, where `localStorage`/`window` don't exist — hand back a
+  // plain in-memory cache on the server and hydrate from storage on the client.
+  if (typeof window === "undefined") return new Map();
+  const map = new Map<string, any>(
+    JSON.parse(localStorage.getItem(SWR_CACHE_KEY) || "[]") as [string, any][],
+  );
+  const save = () => {
+    localStorage.setItem(SWR_CACHE_KEY, JSON.stringify([...map.entries()]));
+  };
+  window.addEventListener("beforeunload", save);
+  window.setInterval(save, 10_000);
+  return map;
+}
 
 interface AuthContextValue {
   account: string | null;
@@ -173,5 +190,16 @@ export function Providers({ children }: { children: ReactNode }) {
     [account, token, supabase, ready, busy, login, logout, transact],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <SWRConfig
+      value={{
+        provider: localStorageProvider,
+        dedupingInterval: 30_000,
+        keepPreviousData: true,
+        revalidateOnFocus: false,
+      }}
+    >
+      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    </SWRConfig>
+  );
 }

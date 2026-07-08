@@ -32,6 +32,7 @@ export default function ChannelPage() {
   const [giftOpen, setGiftOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null);
+  const [onlyHolders, setOnlyHolders] = useState(false);
 
   const refreshCount = useCallback(() => {
     if (!id) return;
@@ -166,14 +167,19 @@ export default function ChannelPage() {
       <TopicBar
         channelId={id}
         isOwner={isOwner}
+        token={token}
         activeTopicId={activeTopicId}
+        onlyHolders={onlyHolders}
         onSelect={setActiveTopicId}
+        onOnlyHoldersChange={setOnlyHolders}
       />
 
       <MessageList
         channelId={id}
         token={token}
+        modMinAmount={channel.mod_min_amount}
         activeTopicId={activeTopicId}
+        onlyHolders={onlyHolders}
         onTip={(m) => setTipTarget({ recipient: m.sender_wax, message: m })}
         onReply={(m) => setReplyTo(m)}
       />

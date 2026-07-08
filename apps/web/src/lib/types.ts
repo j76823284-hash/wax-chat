@@ -29,6 +29,7 @@ export interface Channel {
   token_precision: number | null;
   token_logo_url: string | null;
   token_issuer: string | null;
+  mod_min_amount: number | null;
   created_at: string;
 }
 
@@ -47,6 +48,15 @@ export interface Message {
   reply_to: string | null;
   topic_id: string | null;
   edited_at: string | null;
+  deleted_at: string | null;
+  deleted_reason: string | null;
+  created_at: string;
+}
+
+export interface MessageFlag {
+  message_id: string;
+  channel_id: string;
+  flagger_wax: string;
   created_at: string;
 }
 

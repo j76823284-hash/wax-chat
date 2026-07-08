@@ -38,6 +38,9 @@ export function MessageRow({
   onTip,
   onReply,
   onEdit,
+  canFlag,
+  flagCount,
+  onFlag,
   replyPreview,
   reactions,
   onToggleReaction,
@@ -51,6 +54,9 @@ export function MessageRow({
   onTip: (message: Message) => void;
   onReply: (message: Message) => void;
   onEdit: (message: Message, body: string) => Promise<void>;
+  canFlag: boolean;
+  flagCount: number;
+  onFlag: (message: Message) => void;
   replyPreview?: { name: string; body: string } | null;
   reactions: Reaction[];
   onToggleReaction: (message: Message, emoji: string) => void;
@@ -133,6 +139,17 @@ export function MessageRow({
               >
                 ◆ Tip
               </button>
+            ) : null}
+            {canFlag ? (
+              <button
+                onClick={() => onFlag(message)}
+                className="rounded px-1 text-[11px] text-neutral-500 opacity-0 transition hover:text-red-300 group-hover:opacity-100"
+                title="Flag for moderator review"
+              >
+                Flag {flagCount ? `${flagCount}/3` : ""}
+              </button>
+            ) : flagCount ? (
+              <span className="text-[10px] text-neutral-600">{flagCount}/3</span>
             ) : null}
           </div>
         </div>
