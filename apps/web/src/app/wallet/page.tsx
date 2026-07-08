@@ -2,19 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR, { mutate } from "swr";
-import {
-  getAccountNfts,
-  nftTransferAction,
-  toAssetString,
-  transferAction,
-  type NftAsset,
-} from "@wax-chat/wax";
+import { getAccountNfts, toAssetString, transferAction, type NftAsset } from "@wax-chat/wax";
 import { useAuth } from "@/app/providers";
 import { chain } from "@/lib/wax";
 import { useBalance, type BalanceResult } from "@/hooks/useBalance";
 import { ProfilePicModal } from "@/components/ProfilePicModal";
 import { PriceNote } from "@/components/PriceNote";
 import { useToast } from "@/components/Toast";
+import { NftTransferModal } from "@/components/NftTransferModal";
 
 interface WalletToken {
   contract: string;
@@ -59,6 +54,7 @@ function WalletView({
   const [nftDebounced, setNftDebounced] = useState("");
   const [nftPage, setNftPage] = useState(1);
   const [pickingPic, setPickingPic] = useState(false);
+  const [nftTarget, setNftTarget] = useState<NftAsset | null>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const NFT_PAGE = 24;
   const nftKey = useMemo(
@@ -98,16 +94,9 @@ function WalletView({
     });
   }, [nftBatch, nftPage]);
 
-  async function transferNft(asset: NftAsset) {
-    const to = window.prompt(`Send "${asset.name}" to which WAX account?`);
-    if (!to) return;
-    try {
-      await transact([nftTransferAction({ from: account, to: to.trim(), assetIds: [asset.assetId] })]);
-      setNfts((prev) => prev.filter((n) => n.assetId !== asset.assetId));
-      void mutate((key) => Array.isArray(key) && key[0] === "wallet-nfts", undefined, { revalidate: true });
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Transfer failed");
-    }
+  function handleNftSent(assetId: string) {
+    setNfts((prev) => prev.filter((n) => n.assetId !== assetId));
+    void mutate((key) => Array.isArray(key) && key[0] === "wallet-nfts", undefined, { revalidate: true });
   }
 
   const tokens = tokenData?.tokens ?? [];
@@ -192,7 +181,7 @@ function WalletView({
           {nfts.map((n) => (
             <button
               key={n.assetId}
-              onClick={() => transferNft(n)}
+              onClick={() => setNftTarget(n)}
               className="group overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900 text-left hover:border-wax-500"
               title="Click to transfer"
             >
@@ -229,6 +218,14 @@ function WalletView({
       </section>
 
       {pickingPic ? <ProfilePicModal account={account} onClose={() => setPickingPic(false)} /> : null}
+      {nftTarget ? (
+        <NftTransferModal
+          asset={nftTarget}
+          account={account}
+          onClose={() => setNftTarget(null)}
+          onSent={handleNftSent}
+        />
+      ) : null}
     </div>
   );
 }
