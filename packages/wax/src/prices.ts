@@ -92,17 +92,13 @@ export async function getTokenPrices(opts?: {
     return cache;
   }
 
-  const gateway = process?.env?.NEXT_PUBLIC_WAX_API_URL || process?.env?.WAX_API_URL;
-  const url = opts?.url ?? (gateway ? `${gateway.replace(/\/+$/, "")}/prices/tokens` : process?.env?.WAX_PRICE_API_URL ?? DEFAULT_URL);
+  const url = opts?.url ?? process?.env?.WAX_PRICE_API_URL ?? DEFAULT_URL;
 
   try {
-    const res = await fetch(url, process?.env?.WAX_API_KEY ? { headers: { "x-api-key": process.env.WAX_API_KEY } } : undefined);
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`price source responded ${res.status}`);
     const payload = await res.json();
-    const prices =
-      payload && typeof payload === "object" && !Array.isArray(payload)
-        ? ((payload as { prices?: Record<string, number> }).prices ?? (payload as Record<string, number>))
-        : parsePrices(payload);
+    const prices = parsePrices(payload);
 
     const fresh: TokenPrices = {
       prices,

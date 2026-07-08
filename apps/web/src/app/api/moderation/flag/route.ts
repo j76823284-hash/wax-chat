@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrencyBalance, parseAsset } from "@wax-chat/wax";
 import { verifySupabaseWaxToken } from "@/lib/jwt";
 import { serviceClient } from "@/lib/server-supabase";
 
@@ -21,19 +22,13 @@ async function waxFromRequest(req: Request): Promise<string | null> {
 }
 
 async function holderAmount(account: string, contract: string, symbol: string): Promise<number> {
-  const gateway = process.env.NEXT_PUBLIC_WAX_API_URL;
-  if (!gateway) throw new Error("WAX gateway not configured");
-  const res = await fetch(`${gateway.replace(/\/+$/, "")}/holders`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(process.env.WAX_API_KEY ? { "x-api-key": process.env.WAX_API_KEY } : {}),
-    },
-    body: JSON.stringify({ contract, symbol, accounts: [account] }),
-  });
-  if (!res.ok) throw new Error("holder lookup failed");
-  const data = (await res.json()) as Record<string, number>;
-  return data[account] ?? 0;
+  const rpc = process.env.NEXT_PUBLIC_WAX_RPC;
+  if (!rpc) throw new Error("server misconfigured");
+  const rows = await getCurrencyBalance(rpc, account, contract, symbol);
+  const match = rows.find((r) => r.trim().endsWith(` ${symbol}`)) ?? rows[0];
+  if (!match) return 0;
+  const parsed = parseAsset(match);
+  return Number(parsed.value) / 10 ** parsed.precision;
 }
 
 export async function POST(req: Request) {

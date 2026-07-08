@@ -4,7 +4,6 @@ export const clientEnv = {
   network: process.env.NEXT_PUBLIC_WAX_NETWORK ?? "testnet",
   rpc: process.env.NEXT_PUBLIC_WAX_RPC ?? "",
   atomicApi: process.env.NEXT_PUBLIC_ATOMIC_API ?? "",
-  waxApiUrl: process.env.NEXT_PUBLIC_WAX_API_URL ?? "",
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
   appName: process.env.NEXT_PUBLIC_APP_NAME ?? "WaxChat",

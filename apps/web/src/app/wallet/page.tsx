@@ -11,9 +11,10 @@ import {
 } from "@wax-chat/wax";
 import { useAuth } from "@/app/providers";
 import { chain } from "@/lib/wax";
-import { useBalance } from "@/hooks/useBalance";
+import { useBalance, type BalanceResult } from "@/hooks/useBalance";
 import { ProfilePicModal } from "@/components/ProfilePicModal";
 import { PriceNote } from "@/components/PriceNote";
+import { useToast } from "@/components/Toast";
 
 interface WalletToken {
   contract: string;
@@ -131,7 +132,7 @@ function WalletView({
           <div className="text-xs uppercase tracking-wide text-neutral-500">WAX balance</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums">{wax ? wax.display : "…"} WAX</div>
         </div>
-        <SendTokenCard account={account} transact={transact} />
+        <SendTokenCard account={account} transact={transact} tokens={tokens} wax={wax} />
       </section>
 
       <section>
@@ -258,34 +259,65 @@ function NftImage({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+/** Stable option key for a token: `${contract}:${SYMBOL}`. */
+const tokenKey = (t: { contract: string; symbol: string }) => `${t.contract}:${t.symbol}`;
+
 function SendTokenCard({
   account,
   transact,
+  tokens,
+  wax,
 }: {
   account: string;
   transact: (actions: import("@wax-chat/wax").ActionObject[]) => Promise<{ transactionId: string }>;
+  tokens: WalletToken[];
+  wax: BalanceResult | undefined;
 }) {
+  const { toast } = useToast();
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
-  const [contract, setContract] = useState("eosio.token");
-  const [symbol, setSymbol] = useState("WAX");
-  const [precision, setPrecision] = useState("8");
-  const [status, setStatus] = useState<string | null>(null);
+  const [selKey, setSelKey] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // The user can only send what they hold, so the wallet's token list *is* the
+  // full set of choices — no need to type a contract/symbol/precision by hand.
+  // WAX is always offered even if Hyperion didn't return it.
+  const options = useMemo<WalletToken[]>(() => {
+    const list = [...tokens];
+    if (!list.some((t) => t.contract === "eosio.token" && t.symbol === "WAX")) {
+      list.unshift({
+        contract: "eosio.token",
+        symbol: "WAX",
+        precision: 8,
+        asset: wax?.amount ?? "0.00000000 WAX",
+        display: wax?.display ?? "0",
+        usdPrice: null,
+        usdValue: null,
+      });
+    }
+    return list;
+  }, [tokens, wax]);
+
+  const selected = options.find((t) => tokenKey(t) === selKey) ?? options[0];
+  const maxAmount = selected ? (selected.asset.split(" ")[0] ?? "0") : "0";
+
   async function send() {
-    if (!to.trim() || !amount.trim()) return;
+    if (!selected || !to.trim() || !amount.trim()) return;
     setBusy(true);
-    setStatus(null);
     try {
-      const quantity = toAssetString(amount, Number(precision) || 0, symbol.trim().toUpperCase());
-      const { transactionId } = await transact([
-        transferAction({ contract: contract.trim(), from: account, to: to.trim(), quantity, memo: "" }),
+      const quantity = toAssetString(amount, selected.precision, selected.symbol);
+      await transact([
+        transferAction({ contract: selected.contract, from: account, to: to.trim(), quantity, memo: "" }),
       ]);
-      setStatus(`Sent ${quantity} ✓ ${transactionId ? transactionId.slice(0, 8) : ""}`);
+      toast({ variant: "success", title: "Sent ✓", description: `${quantity} → @${to.trim()}` });
       setAmount("");
+      setTo("");
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Transfer failed");
+      toast({
+        variant: "error",
+        title: "Transfer failed",
+        description: e instanceof Error ? e.message : "The transfer was not sent.",
+      });
     } finally {
       setBusy(false);
     }
@@ -301,42 +333,40 @@ function SendTokenCard({
           placeholder="recipient.wam"
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
         />
+        <select
+          value={selected ? tokenKey(selected) : ""}
+          onChange={(e) => setSelKey(e.target.value)}
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
+        >
+          {options.map((t) => (
+            <option key={tokenKey(t)} value={tokenKey(t)}>
+              {t.symbol} — {t.display} available
+            </option>
+          ))}
+        </select>
         <div className="flex gap-2">
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             inputMode="decimal"
             placeholder="1.0"
-            className="w-24 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
+            className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
           />
-          <input
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            placeholder="WAX"
-            className="w-20 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm uppercase outline-none focus:border-wax-500"
-          />
-          <input
-            value={contract}
-            onChange={(e) => setContract(e.target.value)}
-            placeholder="eosio.token"
-            className="flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm outline-none focus:border-wax-500"
-          />
-          <input
-            value={precision}
-            onChange={(e) => setPrecision(e.target.value)}
-            inputMode="numeric"
-            className="w-12 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-center text-sm outline-none focus:border-wax-500"
-            title="precision"
-          />
+          <button
+            type="button"
+            onClick={() => setAmount(maxAmount)}
+            className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-400 hover:border-wax-500 hover:text-neutral-100"
+          >
+            Max
+          </button>
         </div>
         <button
           onClick={send}
-          disabled={busy || !to.trim() || !amount.trim()}
+          disabled={busy || !selected || !to.trim() || !amount.trim()}
           className="w-full rounded-lg bg-wax-500 px-3 py-1.5 text-sm font-semibold text-neutral-950 hover:bg-wax-400 disabled:opacity-60"
         >
-          {busy ? "Sending…" : "Send"}
+          {busy ? "Sending…" : selected ? `Send ${selected.symbol}` : "Send"}
         </button>
-        {status ? <p className="text-xs text-neutral-300">{status}</p> : null}
       </div>
     </div>
   );

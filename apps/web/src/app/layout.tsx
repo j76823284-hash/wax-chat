@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/AppShell";
+import { ToastProvider } from "@/components/Toast";
 
 export const metadata: Metadata = {
   title: "WaxChat",
@@ -22,7 +23,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <Providers>
-          <AppShell>{children}</AppShell>
+          <ToastProvider>
+            <AppShell>{children}</AppShell>
+          </ToastProvider>
         </Providers>
       </body>
     </html>

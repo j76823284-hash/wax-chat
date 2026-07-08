@@ -1,21 +1,45 @@
 import { NextResponse } from "next/server";
+import { getCurrencyBalance, parseAsset } from "@wax-chat/wax";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Batch holder-balance lookup used by moderation / holders-only filtering.
+ * Reads each account's balance directly from the chain (`get_currency_balance`
+ * via NEXT_PUBLIC_WAX_RPC) and returns `{ [account]: humanAmount }`. Accounts
+ * that hold none (or fail to resolve) map to 0.
+ */
 export async function POST(req: Request) {
-  const gateway = process.env.NEXT_PUBLIC_WAX_API_URL;
-  if (!gateway) return NextResponse.json({ error: "WAX gateway not configured" }, { status: 503 });
+  const rpc = process.env.NEXT_PUBLIC_WAX_RPC;
+  if (!rpc) return NextResponse.json({ error: "server misconfigured" }, { status: 500 });
 
-  const body = await req.json().catch(() => null);
-  const res = await fetch(`${gateway.replace(/\/+$/, "")}/holders`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(process.env.WAX_API_KEY ? { "x-api-key": process.env.WAX_API_KEY } : {}),
-    },
-    body: JSON.stringify(body),
-    next: { revalidate: 15 },
-  });
-  return NextResponse.json(await res.json(), { status: res.status });
+  const body = (await req.json().catch(() => null)) as {
+    contract?: string;
+    symbol?: string;
+    accounts?: string[];
+  } | null;
+  const contract = body?.contract;
+  const symbol = body?.symbol;
+  const accounts = Array.isArray(body?.accounts) ? body!.accounts : [];
+  if (!contract || !symbol) {
+    return NextResponse.json({ error: "contract and symbol are required" }, { status: 400 });
+  }
+
+  const unique = [...new Set(accounts.filter((a): a is string => typeof a === "string" && !!a))];
+  const entries = await Promise.all(
+    unique.map(async (account): Promise<[string, number]> => {
+      try {
+        const rows = await getCurrencyBalance(rpc, account, contract, symbol);
+        const match = rows.find((r) => r.trim().endsWith(` ${symbol}`)) ?? rows[0];
+        if (!match) return [account, 0];
+        const parsed = parseAsset(match);
+        return [account, Number(parsed.value) / 10 ** parsed.precision];
+      } catch {
+        return [account, 0];
+      }
+    }),
+  );
+
+  return NextResponse.json(Object.fromEntries(entries) as Record<string, number>);
 }

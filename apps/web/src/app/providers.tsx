@@ -22,6 +22,9 @@ const ACCOUNT_KEY = "waxchat.account";
 const SWR_CACHE_KEY = "waxchat.swr.cache";
 
 function localStorageProvider(): Map<string, any> {
+  // Runs during SSR too, where `localStorage`/`window` don't exist — hand back a
+  // plain in-memory cache on the server and hydrate from storage on the client.
+  if (typeof window === "undefined") return new Map();
   const map = new Map<string, any>(
     JSON.parse(localStorage.getItem(SWR_CACHE_KEY) || "[]") as [string, any][],
   );

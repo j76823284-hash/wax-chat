@@ -5,8 +5,6 @@
 
 import { formatAsset, parseAsset } from "./assets";
 
-declare const process: { env?: Record<string, string | undefined> } | undefined;
-
 export interface TokenBalance {
   contract: string;
   symbol: string;
@@ -53,23 +51,6 @@ export async function getTokenBalance(
   symbol: string,
   fallbackPrecision = 0,
 ): Promise<TokenBalance> {
-  const gateway = typeof process !== "undefined" ? process?.env?.NEXT_PUBLIC_WAX_API_URL || process?.env?.WAX_API_URL : "";
-  if (gateway && typeof window === "undefined") {
-    const res = await fetch(`${gateway.replace(/\/+$/, "")}/holders`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(process?.env?.WAX_API_KEY ? { "x-api-key": process.env.WAX_API_KEY } : {}),
-      },
-      body: JSON.stringify({ contract, symbol, accounts: [account] }),
-    });
-    if (res.ok) {
-      const data = (await res.json()) as Record<string, number>;
-      const amount = data[account] ?? 0;
-      const asset = formatAsset(BigInt(Math.round(amount * 10 ** fallbackPrecision)), fallbackPrecision, symbol);
-      return { contract, symbol, precision: fallbackPrecision, value: parseAsset(asset).value, asset };
-    }
-  }
   const rows = await getCurrencyBalance(endpoint, account, contract, symbol);
   const match = rows.find((r) => r.trim().endsWith(` ${symbol}`)) ?? rows[0];
   if (match) {
@@ -134,16 +115,6 @@ export async function getCurrencyStats(
  */
 export async function getAccountTokens(hyperionUrl: string, account: string): Promise<TokenBalance[]> {
   try {
-    const gateway = typeof process !== "undefined" ? process?.env?.NEXT_PUBLIC_WAX_API_URL || process?.env?.WAX_API_URL : "";
-    if (gateway && typeof window === "undefined") {
-      const res = await fetch(`${gateway.replace(/\/+$/, "")}/wallet/${encodeURIComponent(account)}/tokens`, {
-        headers: process?.env?.WAX_API_KEY ? { "x-api-key": process.env.WAX_API_KEY } : undefined,
-      });
-      if (res.ok) {
-        const json = (await res.json()) as { tokens?: { contract: string; symbol: string; precision: number; asset: string }[] };
-        return (json.tokens ?? []).map((t) => ({ ...t, value: parseAsset(t.asset).value }));
-      }
-    }
     const url = `${hyperionUrl.replace(/\/+$/, "")}/v2/state/get_tokens?account=${encodeURIComponent(account)}`;
     const res = await fetch(url);
     if (!res.ok) return [];
